@@ -1,34 +1,29 @@
-// Timbre Automatizado para Colegio, empresa, cultivo, etc...  
-// Con Arduino UNO,(RTC), Modulo Rele, Modulo I2C para LCD 2x16 
-// Conexion i2C :Arduino UNO  SCL-> A5   SDA->A4  VCC->5V  GND->GND
-// Conexion RTC :Arduino UNO    GND->GND VCC->5V SCL-> SCL  SDA->SDA los dos pines despues del ...12,13,GND,AREF,SDA,SCL
-// Conexion Rele:Arduino UNO GND->GND  VCC->5V  IN->7
-// NOTA: se debe cargar dos veces este programa 1. Con la linea  RTC.adjust(DateTime(__DATE__, __TIME__)); 
-//                                              2. Sin esa linea
+#include <I2C_LCD.h>
+#include <Wire.h>          // Necesario para la comunicación I2C
+#include <RtcDS1302.h>      // Biblioteca para el RTC DS1302
 
-#include <Wire.h> 
-#include "RTClib.h"
-#include <LiquidCrystal_I2C.h>
+// Crear objeto para el LCD (dirección 39) y RTC
+I2C_LCD lcd(39);   
+ThreeWire myWire(4, 5, 2); // Pines del RTC: IO, SCLK, CE
+RtcDS1302<ThreeWire> Rtc(myWire); // Creación del objeto RTC
 
-LiquidCrystal_I2C lcd(0x27,16,2); // inicializa la interfaz I2C del LCD 16x2
-RTC_DS1307 RTC;                   // inicializa el modulo RTC
-int r_diaSemana;                  // almacena el resultado del dia de la semana calculado
+int diaSemana;                  // almacena el resultado del dia de la semana calculado
 const int timbre = 7;             // Pin 7 encargado de activar el timbre, se conecta al Rele
 int segundo;
 int minuto;
 int hora;
-int tiempo_timbre=5000; // Tiempo continuo que dura el timbre sonando, en milisegundos 5000 = 5 segundos
+int tiempoTimbre=5000; // Tiempo continuo que dura el timbre sonando, en milisegundos 5000 = 5 segundos
 
 //////////////////////////////// Horario 1 /////////////////////////
 // Hora en la que suena el timbre escrito  h1=Hora, m1=Minutos, s1=Segundos
 // Cuando no se programa ninguna hora se debe dejar escrito el numero 99  
 // se pueden programar 16 timbres por cada horario, _c1 indica que es el horario 1
-int h1_c1=7;   int m1_c1=0;   int s1_c1=0;
-int h2_c1=7;   int m2_c1=45;  int s2_c1=0;
-int h3_c1=8;   int m3_c1=30;  int s3_c1=0;
-int h4_c1=8;   int m4_c1=45;  int s4_c1=0;
-int h5_c1=9;   int m5_c1=30;  int s5_c1=0;
-int h6_c1=10;  int m6_c1=15;  int s6_c1=0;
+int h1_c1=15;   int m1_c1=6;   int s1_c1=0;
+int h2_c1=12;   int m2_c1=44;  int s2_c1=0;
+int h3_c1=12;   int m3_c1=50;  int s3_c1=0;
+int h4_c1=12;   int m4_c1=51;  int s4_c1=0;
+int h5_c1=12;   int m5_c1=52;  int s5_c1=0;
+int h6_c1=12;  int m6_c1=53;  int s6_c1=0;
 int h7_c1=10;  int m7_c1=30;  int s7_c1=0;
 int h8_c1=11;  int m8_c1=15;  int s8_c1=0;
 int h9_c1=12;  int m9_c1=00;  int s9_c1=0;
@@ -41,7 +36,7 @@ int h15_c1=99; int m15_c1=0;  int s15_c1=0;
 int h16_c1=99; int m16_c1=0;  int s16_c1=0;
 
 //////////////////////////////// Horario 2 /////////////////////////
-int h1_c2=7;   int m1_c2=0;   int s1_c2=0;
+int h1_c2=15;   int m1_c2=6;   int s1_c2=10;
 int h2_c2=7;   int m2_c2=30;  int s2_c2=0;
 int h3_c2=8;   int m3_c2=10;  int s3_c2=0;
 int h4_c2=8;   int m4_c2=50;  int s4_c2=0;
@@ -59,7 +54,7 @@ int h15_c2=99; int m15_c2=0;  int s15_c2=0;
 int h16_c2=99; int m16_c2=0;  int s16_c2=0;
 
 //////////////////////////////// Horario 3 /////////////////////////
-int h1_c3=7;   int m1_c3=0;   int s1_c3=0;
+int h1_c3=15;   int m1_c3=6;   int s1_c3=20;
 int h2_c3=8;   int m2_c3=30;  int s2_c3=0;
 int h3_c3=9;   int m3_c3=0;   int s3_c3=0;
 int h4_c3=9;   int m4_c3=30;  int s4_c3=0;
@@ -81,55 +76,58 @@ void setup () {
   
  pinMode(timbre, OUTPUT);                    // Configura como salida el pin 7
  Wire.begin();                               
- RTC.begin();                                // Inicia la comunicaci¢n con el RTC
+ Rtc.Begin();                                // Inicia la comunicación con el RTC
  
-// RTC.adjust(DateTime(__DATE__, __TIME__)); // Lee la fecha y hora del PC (Solo en la primera carga)
-                                             // el anterior se usa solo en la configuracion inicial luego se pone como comentario
-                                             // y se vuelve a cargar el programa sin esa linea.
+
+// Lee la fecha y hora del PC                                        
+Rtc.SetDateTime(RtcDateTime(__DATE__, __TIME__));                                             // y se vuelve a cargar el programa sin esa línea.
  Serial.begin(9600);                         // Establece la velocidad de datos del puerto serie a 9600
- lcd.init();
- lcd.backlight();                            // Coloca luz de fondo al LCD
- lcd.clear();                                // Borra el  LCD
+ lcd.begin(16, 2);   
+  lcd.display();
+  lcd.clear();                                // Borra el  LCD
 } 
 ////////////////////////////////// Void loop() ///////////
 void loop(){
- DateTime now = RTC.now();          // Obtiene la fecha y hora del RTC
+ RtcDateTime now = Rtc.GetDateTime();          // Obtiene la fecha y hora del RTC
 
  int contacto1 = analogRead(A0);    //Lee el valor de los contactos para escoger el horario
  int contacto2 = analogRead(A1);
  int contacto3 = analogRead(A2);
  int contacto4 = analogRead(A3);    // contacto que activa o desactiva los fines de semana
 
- Serial.print(now.year(), DEC);  // A§o
- Serial.print('/');
- Serial.print(now.month(), DEC); // Mes
- Serial.print('/');
- Serial.print(now.day(), DEC);   // Dia
- Serial.print(' ');
- Serial.print(now.hour(), DEC);  // Horas
- Serial.print(':');
- Serial.print(now.minute(), DEC); // Minutos
- Serial.print(':');
- Serial.print(now.second(), DEC); // Segundos
- Serial.println();
- lcd.setCursor(0,0);
+Serial.print(now.Year(), DEC);
+Serial.print('/');
+Serial.print(now.Month(), DEC);
+Serial.print('/');
+Serial.print(now.Day(), DEC);
+Serial.print(" ");
+Serial.print(now.Hour(), DEC);
+Serial.print(':');
+Serial.print(now.Minute(), DEC);
+Serial.print(':');
+Serial.print(now.Second(), DEC);
+    Serial.println();
+
+  lcd.setCursor(0,0);
  lcd.print("D:");
- lcd.print(now.year(), DEC);
+ lcd.print(now.Year(), DEC);
  lcd.print("/");
- lcd.print(now.month(), DEC);
+ lcd.print(now.Month(), DEC);
  lcd.print("/");
- lcd.print(now.day(), DEC);
+ lcd.print(now.Day(), DEC);
  lcd.print(" ");
+ 
  lcd.setCursor(0,1);
  lcd.print("T: ");
- lcd.print(now.hour(), DEC);
+ lcd.print(now.Hour(), DEC);
  lcd.print(":");
- lcd.print(now.minute(), DEC);
+ lcd.print(now.Minute(), DEC);
  lcd.print(":");
- lcd.print(now.second(), DEC);
- segundo=now.second();
- minuto=now.minute();
- hora=now.hour();
+ lcd.print(now.Second(), DEC);
+
+ segundo = now.Second();
+minuto = now.Minute();
+hora = now.Hour();
 
  if (contacto4 <= 1000){     // si el contacto 4 esta desactivado, despliega -e- entre semana funciona el timbre
     lcd.setCursor(12,0);
@@ -137,14 +135,14 @@ void loop(){
     Serial.print("-e-"); 
  }
  else {                      // si el contacto 4 esta activado, despliega -F- el Fin de semana funciona el timbre
-   lcd.setCursor(12,0);
+   lcd.setCursor(13,0);
    lcd.print("F");
    Serial.print("-F-");
  }
  
- int r_diaSemana=dia_de_semana();   // llama a la funcion que calcula el dia de la semana y lo almacena en r_diaSemana
+ int diaSemana=dia_de_semana();   // llama a la funcion que calcula el dia de la semana y lo almacena en diaSemana
  
- if ((r_diaSemana == 6 || r_diaSemana == 0)&&(contacto4 <= 1000)){  // si el contacto4 de Fin de semana esta apagado y es fin de semana no hace nada
+ if ((diaSemana == 6 || diaSemana == 0)&&(contacto4 <= 1000)){  // si el contacto4 de Fin de semana esta apagado y es fin de semana no hace nada
  }
  else {
    if (contacto1 >= 1000)   // Si el contacto 1 esta activo (Horario 1)    
@@ -171,7 +169,7 @@ void activar_timbre(){
     lcd.setCursor(0,0);
     lcd.print("Timbre ON  ");
     Serial.println("Timbre Activo");
-    delay(tiempo_timbre); 
+    delay(tiempoTimbre); 
 }
 /////////////////////////////// Calcula el dia de la Semana //////////////////////////////////
 int dia_de_semana(){
@@ -182,15 +180,17 @@ int dia_de_semana(){
  int t_mes;
  int n_anno;
  int d_anno;
+ // método de Zeller (Algoritmo para elcontrar el dia de la semana)
  int t_siglo=6;
 
- DateTime now = RTC.now(); //fecha y hora del RTC
+ RtcDateTime now = Rtc.GetDateTime(); //fecha y hora del RTC
+  
  lcd.setCursor(13,1);
 
- n_anno=(now.year()-2000);
+ n_anno=(now.Year()-2000);
  d_anno=n_anno/4;
- n_dia=now.day();
- n_mes=now.month();
+ n_dia=now.Day();
+ n_mes=now.Month();
 
  switch (n_mes) {
     case 1:
@@ -233,7 +233,7 @@ int dia_de_semana(){
       t_mes=t_mes;
     break;
  }
-
+// Algoritmo para calcular en dia de la semana
  r_dia=n_dia+t_mes+n_anno+d_anno+t_siglo;
  r_dia = r_dia % 7;
 
